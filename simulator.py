@@ -85,7 +85,7 @@ def count_thrown_balls(ball: Ball, pokemon: Pokemon) -> int:
 
 
 def decide_ball(hp: int) -> Ball:
-    v = np.random.randint(hp, hp + 200)
+    v = np.random.randint(hp, hp + 100)
     if v < 150:
         return Ball(ball_type='monster')
     if v >= 300:
@@ -102,7 +102,7 @@ def get_color(ball: Ball) -> str:
 
 
 def main():
-    hp_list = np.random.randint(1, 300, 100)
+    hp_list = np.random.randint(1, 300, 1000)
     balls = [decide_ball(hp) for hp in hp_list]
     thrown_balls_list = [count_thrown_balls(ball, Pokemon(name='Iwark', hp=hp, hp_max=300)) for hp, ball in zip(hp_list, balls)]
 
@@ -112,12 +112,12 @@ def main():
     df = pd.concat([df, pd.get_dummies(df['ball_type'])], axis=1)
     df['constant'] = 1
 
-    if True:
-        df = df[['constant', 'hp', 'monster', 'super', 'hyper']]
-    else:
-        df = df[['constant', 'hp']]
+    X = df[['constant', 'hp']].values
+    Y = np.array(thrown_balls_list)
+    beta = np.linalg.inv(X.T @ X) @ X.T @ Y
+    print(beta)
 
-    X = df.values
+    X = df[['constant', 'hp', 'monster', 'hyper']].values
     Y = np.array(thrown_balls_list)
     beta = np.linalg.inv(X.T @ X) @ X.T @ Y
     print(beta)
