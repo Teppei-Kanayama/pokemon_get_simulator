@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -28,7 +28,7 @@ class Ball:
 
 
 class Pokemon:
-    def __init__(self, rarity: str, hp: int, hp_max: int, state: Optional[str] = None) -> None:
+    def __init__(self, rarity: int, hp: int, hp_max: int, state: Optional[str] = None) -> None:
         self._state_mapper = dict(
             asleep=25,
             freeze=25,
@@ -91,32 +91,41 @@ def get_color(ball: Ball) -> str:
     return 'g'
 
 
-def main():
+def generate_data() -> pd.DataFrame:
     rarity_list = np.random.randint(2, 52, 100) * 5
     balls = [decide_ball(rarity) for rarity in rarity_list]
-    thrown_balls_list = [count_thrown_balls(ball, Pokemon(rarity=rarity, hp=100, hp_max=100)) for rarity, ball in zip(rarity_list, balls)]
-
     ball_types = [ball.ball_type for ball in balls]
+    thrown_balls_list = [count_thrown_balls(ball, Pokemon(rarity=rarity, hp=100, hp_max=100)) for rarity, ball in
+                         zip(rarity_list, balls)]
+    df = pd.DataFrame(dict(rarity=rarity_list, ball_type=ball_types, thrown_balls=thrown_balls_list))
+    return df
 
-    df = pd.DataFrame(dict(rarity=rarity_list, ball_type=ball_types))
+
+def get_beta(df: pd.DataFrame, x_columns: Tuple[str, ...], y_column: str) -> float:
     df = pd.concat([df, pd.get_dummies(df['ball_type'])], axis=1)
     df['constant'] = 1
-
-    X = df[['constant', 'super']].values
-    Y = np.array(thrown_balls_list)
+    X = df[list(('constant',) + x_columns)].values
+    Y = df[y_column].values
     beta = np.linalg.inv(X.T @ X) @ X.T @ Y
-    print(beta)
+    return beta
 
-    X = df[['constant', 'super', 'rarity']].values
-    Y = np.array(thrown_balls_list)
-    beta = np.linalg.inv(X.T @ X) @ X.T @ Y
-    print(beta)
 
-    ball_colors = [get_color(ball) for ball in balls]
-    plt.scatter(rarity_list, thrown_balls_list, c=ball_colors, s=10)
-    plt.xlabel('remaining HP')
-    plt.ylabel('the number of balls to get the Iwark')
-    plt.savefig('hyper.png')
+def main():
+    data = generate_data()
+    data.to_csv('resources/data.csv')
+
+    beta1 = get_beta(data, x_columns=('super',), y_column='thrown_balls')
+    beta2 = get_beta(data, x_columns=('super', 'rarity'), y_column='thrown_balls')
+
+    # import pdb; pdb.set_trace()
+    #
+    # ball_colors = [get_color(ball) for ball in balls]
+    # plt.scatter(rarity_list, thrown_balls_list, c=ball_colors, s=10)
+    # plt.xlabel('remaining HP')
+    # plt.ylabel('the number of balls to get the Iwark')
+    # plt.savefig('hyper.png')
+    print(beta1)
+    print(beta2)
 
 
 if __name__ == '__main__':
