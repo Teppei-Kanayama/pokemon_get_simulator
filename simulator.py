@@ -45,14 +45,14 @@ class Pokemon:
         return self._state_mapper[self._state] if self._state else 0
 
 
-def _get_f_value(ball: Ball, pokemon: Pokemon) -> int:
+def _calculate_f_value(ball: Ball, pokemon: Pokemon) -> int:
     numerator = int(pokemon.hp_max * 255 / ball.get_coefficient())
     denominator = int(pokemon.hp / 4)
     f_value = numerator / denominator if denominator > 0 else numerator
     return min(255, f_value)
 
 
-def is_get(ball: Ball, pokemon: Pokemon) -> bool:
+def judge_capture(ball: Ball, pokemon: Pokemon) -> bool:
     if ball.ball_type == 'master':
         return True
     first_random_variable = ball.get_random_variable() - pokemon.get_state_adjustment()
@@ -61,7 +61,7 @@ def is_get(ball: Ball, pokemon: Pokemon) -> bool:
     if first_random_variable > pokemon.rarity:
         return False
     second_random_variable = np.random.randint(0, 256)
-    if second_random_variable <= _get_f_value(ball, pokemon):
+    if second_random_variable <= _calculate_f_value(ball, pokemon):
         return True
     return False
 
@@ -69,7 +69,7 @@ def is_get(ball: Ball, pokemon: Pokemon) -> bool:
 def count_thrown_balls(ball: Ball, pokemon: Pokemon) -> int:
 
     def f(n: int) -> int:
-        if is_get(ball=ball, pokemon=pokemon):
+        if judge_capture(ball=ball, pokemon=pokemon):
             return n
         return f(n + 1)
 
@@ -81,14 +81,6 @@ def decide_ball(rarity: int) -> Ball:
     if np.random.binomial(1, p):
         return Ball(ball_type='super')
     return Ball(ball_type='monster')
-
-
-def get_color(ball: Ball) -> str:
-    if ball.ball_type == 'monster':
-        return 'r'
-    if ball.ball_type == 'super':
-        return 'b'
-    return 'g'
 
 
 def generate_data() -> pd.DataFrame:
@@ -110,20 +102,50 @@ def get_beta(df: pd.DataFrame, x_columns: Tuple[str, ...], y_column: str) -> flo
     return beta
 
 
+def get_color(ball_type: str) -> str:
+    if ball_type == 'monster':
+        return 'r'
+    if ball_type == 'super':
+        return 'b'
+    return 'g'
+
+
+def draw_scatter(data: pd.DataFrame, output_filename: str) -> None:
+    ball_types = data['ball_type']
+    rarity_list = data['rarity'].values
+    thrown_balls_list = data['thrown_balls'].values
+
+    ball_colors = [get_color(ball_type) for ball_type in ball_types]
+    plt.scatter(rarity_list, thrown_balls_list, c=ball_colors, s=10)
+    plt.xlabel('Ease of Catching')
+    plt.ylabel('the number of balls to catch the pokemon')
+    plt.savefig(output_filename)
+
+
+def two_sample_test(data) -> Tuple[float, float, float]:
+    monster = data[data['ball_type'] == 'monster']['thrown_balls'].values
+    super = data[data['ball_type'] == 'super']['thrown_balls'].values
+
+    m = len(monster)
+    n = len(super)
+
+    monster_bar = monster.mean()
+    super_bar = super.mean()
+
+    ss = 1 / (m + n - 2) * ((m - 1) * np.var(monster, ddof=1) + (n - 1) * np.var(super, ddof=1))
+    v = (super_bar - monster_bar) / np.sqrt(ss * (1 / m + 1 / n))
+    return monster_bar, super_bar, v
+
+
 def main():
     data = generate_data()
     data.to_csv('resources/data.csv')
+    print(two_sample_test(data))
+
+    draw_scatter(data, 'resources/ball_types.png')
 
     beta1 = get_beta(data, x_columns=('super',), y_column='thrown_balls')
     beta2 = get_beta(data, x_columns=('super', 'rarity'), y_column='thrown_balls')
-
-    # import pdb; pdb.set_trace()
-    #
-    # ball_colors = [get_color(ball) for ball in balls]
-    # plt.scatter(rarity_list, thrown_balls_list, c=ball_colors, s=10)
-    # plt.xlabel('remaining HP')
-    # plt.ylabel('the number of balls to get the Iwark')
-    # plt.savefig('hyper.png')
     print(beta1)
     print(beta2)
 
