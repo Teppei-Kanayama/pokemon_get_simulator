@@ -28,7 +28,7 @@ class Ball:
 
 
 class Pokemon:
-    def __init__(self, name: str, hp: int, hp_max: int, state: Optional[str] = None) -> None:
+    def __init__(self, rarity: str, hp: int, hp_max: int, state: Optional[str] = None) -> None:
         self._state_mapper = dict(
             asleep=25,
             freeze=25,
@@ -36,21 +36,13 @@ class Pokemon:
             paralysis=12,
             poison=12
         )
-        self._rarity_mapper = dict(
-            Iwark=45,
-            Pikachu=190,
-            Mu2=3
-        )
         self._state = state
-        self._name = name
+        self.rarity = rarity
         self.hp = hp
         self.hp_max = hp_max
 
     def get_state_adjustment(self) -> int:
         return self._state_mapper[self._state] if self._state else 0
-
-    def get_rarity(self) -> int:
-        return self._rarity_mapper[self._name]
 
 
 def _get_f_value(ball: Ball, pokemon: Pokemon) -> int:
@@ -66,7 +58,7 @@ def is_get(ball: Ball, pokemon: Pokemon) -> bool:
     first_random_variable = ball.get_random_variable() - pokemon.get_state_adjustment()
     if first_random_variable < 0:
         return True
-    if first_random_variable > pokemon.get_rarity():
+    if first_random_variable > pokemon.rarity:
         return False
     second_random_variable = np.random.randint(0, 256)
     if second_random_variable <= _get_f_value(ball, pokemon):
@@ -84,13 +76,11 @@ def count_thrown_balls(ball: Ball, pokemon: Pokemon) -> int:
     return f(1)
 
 
-def decide_ball(hp: int) -> Ball:
-    v = np.random.randint(hp, hp + 100)
-    if v < 150:
-        return Ball(ball_type='monster')
-    if v >= 300:
-        return Ball(ball_type='hyper')
-    return Ball(ball_type='super')
+def decide_ball(rarity: int) -> Ball:
+    p = - rarity / 245 + 255 / 245
+    if np.random.binomial(1, p):
+        return Ball(ball_type='super')
+    return Ball(ball_type='monster')
 
 
 def get_color(ball: Ball) -> str:
@@ -102,32 +92,33 @@ def get_color(ball: Ball) -> str:
 
 
 def main():
-    hp_list = np.random.randint(1, 300, 1000)
-    balls = [decide_ball(hp) for hp in hp_list]
-    thrown_balls_list = [count_thrown_balls(ball, Pokemon(name='Iwark', hp=hp, hp_max=300)) for hp, ball in zip(hp_list, balls)]
+    rarity_list = np.random.randint(2, 52, 100) * 5
+    balls = [decide_ball(rarity) for rarity in rarity_list]
+    thrown_balls_list = [count_thrown_balls(ball, Pokemon(rarity=rarity, hp=100, hp_max=100)) for rarity, ball in zip(rarity_list, balls)]
 
     ball_types = [ball.ball_type for ball in balls]
 
-    df = pd.DataFrame(dict(hp=hp_list, ball_type=ball_types))
+    df = pd.DataFrame(dict(rarity=rarity_list, ball_type=ball_types))
     df = pd.concat([df, pd.get_dummies(df['ball_type'])], axis=1)
     df['constant'] = 1
 
-    X = df[['constant', 'hp']].values
+    X = df[['constant', 'super']].values
     Y = np.array(thrown_balls_list)
     beta = np.linalg.inv(X.T @ X) @ X.T @ Y
     print(beta)
 
-    X = df[['constant', 'hp', 'monster', 'hyper']].values
+    X = df[['constant', 'super', 'rarity']].values
     Y = np.array(thrown_balls_list)
     beta = np.linalg.inv(X.T @ X) @ X.T @ Y
     print(beta)
 
     ball_colors = [get_color(ball) for ball in balls]
-    plt.scatter(hp_list, thrown_balls_list, c=ball_colors, s=10)
+    plt.scatter(rarity_list, thrown_balls_list, c=ball_colors, s=10)
     plt.xlabel('remaining HP')
     plt.ylabel('the number of balls to get the Iwark')
     plt.savefig('hyper.png')
 
 
 if __name__ == '__main__':
+    np.random.seed(seed=111)
     main()
