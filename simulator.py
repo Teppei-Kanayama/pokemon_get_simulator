@@ -120,6 +120,7 @@ def draw_scatter(data: pd.DataFrame, output_filename: str) -> None:
     plt.xlabel('Ease of Catching')
     plt.ylabel('the number of balls to catch the pokemon')
     plt.savefig(output_filename)
+    plt.clf()
 
 
 def two_sample_test(data) -> Tuple[float, float, float]:
@@ -137,6 +138,41 @@ def two_sample_test(data) -> Tuple[float, float, float]:
     return monster_bar, super_bar, v
 
 
+def ttest(df):
+    df = pd.concat([df, pd.get_dummies(df['ball_type'])], axis=1)
+    df['constant'] = 1
+    X = df[['constant', 'super', 'rarity']].values
+    Y = df['thrown_balls'].values
+    beta = np.linalg.inv(X.T @ X) @ X.T @ Y
+
+    S = np.sqrt(((Y - X @ beta).T @ (Y - X @ beta)) / (100 - 3))
+    q = np.linalg.inv(X.T @ X)[1][1]
+    v = beta[1] / (S * np.sqrt(q))
+    return v
+
+
+def e_distribution(df):
+    df = pd.concat([df, pd.get_dummies(df['ball_type'])], axis=1)
+    df['constant'] = 1
+    X = df[['constant', 'super', 'rarity']].values
+    Y = df['thrown_balls'].values
+    e = (np.eye(100) - X @ np.linalg.inv(X.T @ X) @ X.T) @ Y
+    X1 = X[:, 1]
+    X2 = X[:, 2]
+
+    plt.scatter(X2, e, s=10)
+    plt.xlabel('X')
+    plt.ylabel('e')
+    plt.savefig('x-y.png')
+    plt.clf()
+
+    plt.scatter(X1, e, s=10)
+    plt.xlabel('Z')
+    plt.ylabel('e')
+    plt.savefig('z-y.png')
+    plt.clf()
+
+
 def main():
     data = generate_data()
     data.to_csv('resources/data.csv')
@@ -146,8 +182,13 @@ def main():
 
     beta1 = get_beta(data, x_columns=('super',), y_column='thrown_balls')
     beta2 = get_beta(data, x_columns=('super', 'rarity'), y_column='thrown_balls')
+
     print(beta1)
     print(beta2)
+
+    print(ttest(data))
+
+    e_distribution(data)
 
 
 if __name__ == '__main__':
